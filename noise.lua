@@ -48,3 +48,55 @@ function ColGen.smoothstep(e0, e1, x)
 	local t = math.max(0, math.min(1, (x - e0) / (e1 - e0)))
 	return t * t * (3 - 2 * t)
 end
+
+local tasks, taskHead = {}, 1
+local sliceStart = 0
+
+function ColGen.spawn(fn, first)
+	local co = coroutine.create(fn)
+	if first then
+		table.insert(tasks, taskHead, co)
+	else
+		tasks[#tasks + 1] = co
+	end
+	return co
+end
+
+function ColGen.beginSlice()
+	sliceStart = getTickCount()
+end
+
+function ColGen.yieldIfOver()
+	if coroutine.running() and getTickCount() - sliceStart >= C.TICK_BUDGET_MS then
+		coroutine.yield()
+	end
+end
+
+function ColGen.pump()
+	sliceStart = getTickCount()
+	while taskHead <= #tasks and getTickCount() - sliceStart < C.TICK_BUDGET_MS do
+		local co = tasks[taskHead]
+		if coroutine.status(co) == "dead" then
+			taskHead = taskHead + 1
+		else
+			local ok, err = coroutine.resume(co)
+			if not ok then
+				outputDebugString("TerrainGen task: " .. tostring(err))
+				taskHead = taskHead + 1
+			elseif coroutine.status(co) == "dead" then
+				taskHead = taskHead + 1
+			end
+		end
+	end
+	if taskHead > 64 then
+		local rest = {}
+		for i = taskHead, #tasks do
+			rest[#rest + 1] = tasks[i]
+		end
+		tasks, taskHead = rest, 1
+	end
+end
+
+function ColGen.hasTasks()
+	return taskHead <= #tasks
+end

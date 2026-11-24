@@ -2,16 +2,22 @@
 	<script src="config.lua" type="client"/>
 	<script src="noise.lua" type="client"/>
 	<script src="lighting.lua" type="client"/>
+		<script src="roads.lua" type="client"/>
 	<script src="terrain.lua" type="client"/>
 	<script src="mesh.lua" type="client"/>
 	<script src="col.lua" type="client"/>
+		<script src="dff.lua" type="client"/>
 	<script src="streaming.lua" type="client"/>
 	<script src="render.lua" type="client"/>
-	<script src="client.lua" type="client"/>
+	<script src="debug.lua" type="client"/>
+		<script src="client.lua" type="client"/>
 	<file src="reference.col"/>
 	<file src="Assets/Textures/Grass.png"/>
 	<file src="Assets/Textures/sand.png"/>
 	<file src="Assets/Textures/rock.png"/>
 	<file src="Assets/Textures/snow.png"/>
+	<file src="Assets/Textures/des_road.png"/>
 	<file src="Assets/Shaders/terrain.fx"/>
+		<file src="Assets/Shaders/road.fx"/>
+		<file src="Assets/Textures/road.png"/>
 </meta>

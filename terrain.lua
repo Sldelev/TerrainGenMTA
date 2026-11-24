@@ -4,7 +4,7 @@ local smoothstep = ColGen.smoothstep
 
 local geometryCache = {}
 local geometryKeys = {}
-local GEOMETRY_CACHE_LIMIT = (2 * C.CACHE_RADIUS + 1) ^ 2
+local GEOMETRY_CACHE_LIMIT = (2 * C.CACHE_RADIUS_MAX + 1) ^ 2
 
 local function fbm(x, y, octaves, scale)
 	local total, amp, freq, sum = 0, 1, scale, 0
@@ -17,41 +17,25 @@ local function fbm(x, y, octaves, scale)
 	return sum / total
 end
 
-local function ridged(x, y, octaves, scale)
-	local total, amp, freq, sum = 0, 1, scale, 0
-	for _ = 1, octaves do
-		local n = 1 - math.abs(perlin2(x * freq, y * freq))
-		sum = sum + amp * n * n
-		total = total + amp
-		amp = amp * 0.5
-		freq = freq * 2
-	end
-	return sum / total
-end
-
-local function heightAt(x, y)
+local function rawHeightAt(x, y)
 	local wx = x + C.WARP_AMOUNT * perlin2(x * C.WARP_SCALE + 811, y * C.WARP_SCALE + 233)
 	local wy = y + C.WARP_AMOUNT * perlin2(x * C.WARP_SCALE + 457, y * C.WARP_SCALE + 619)
 	local base = C.BASE_HEIGHT * fbm(wx, wy, C.BASE_OCTAVES, C.BASE_SCALE)
 	local hills = C.HILL_HEIGHT * fbm(wx, wy, 2, C.HILL_SCALE)
-	local mask = smoothstep(C.MOUNTAIN_MASK_LOW, C.MOUNTAIN_MASK_HIGH, fbm(x, y, 2, C.MOUNTAIN_MASK_SCALE))
-	local crest = math.max(0, ridged(wx, wy, C.RIDGE_OCTAVES, C.RIDGE_SCALE) - 0.5) * 2
-	local mountains = C.MOUNTAIN_HEIGHT * mask * (0.25 + 0.75 * crest * crest)
 	local ravineNoise = math.abs(perlin2(wx * C.RAVINE_SCALE + 37, wy * C.RAVINE_SCALE + 91))
 	local ravineMask = math.max(0, 1 - ravineNoise / C.RAVINE_WIDTH)
-	return base + hills + mountains - C.RAVINE_DEPTH * ravineMask, ravineMask
+	ravineMask = ravineMask * smoothstep(C.RAVINE_MASK_LOW, C.RAVINE_MASK_HIGH, fbm(x, y, 2, C.RAVINE_MASK_SCALE))
+	return base + hills - C.RAVINE_DEPTH * ravineMask, ravineMask
+end
+
+local function heightAt(x, y)
+	local h, ravine = rawHeightAt(x, y)
+	return ColGen.applyRoad(x, y, h), ravine
 end
 
 local function layerWeights(z, ravine)
-	local h = z - C.BASE_Z
-	local stone = smoothstep(C.STONE_HEIGHT - C.BLEND_HEIGHT, C.STONE_HEIGHT + C.BLEND_HEIGHT, h)
-	local snow = smoothstep(C.SNOW_HEIGHT - C.BLEND_HEIGHT, C.SNOW_HEIGHT + C.BLEND_HEIGHT, h)
 	local sand = smoothstep(C.SAND_RAVINE - C.BLEND_RAVINE, C.SAND_RAVINE + C.BLEND_RAVINE, ravine)
-	local sum = stone + snow + sand
-	if sum > 1 then
-		stone, snow, sand = stone / sum, snow / sum, sand / sum
-	end
-	return stone, snow, sand
+	return 0, 0, sand
 end
 
 local function buildChunk(cx, cy)
@@ -69,6 +53,7 @@ local function buildChunk(cx, cy)
 			verts[#verts + 1] = {lx, ly, lz}
 			points[#points + 1] = {centerX + lx, centerY + ly, C.BASE_Z + lz, ravine}
 		end
+		ColGen.yieldIfOver()
 	end
 	local faces = {}
 	for j = 0, cells - 1 do
@@ -98,5 +83,6 @@ function ColGen.getGeometry(cx, cy)
 	return unpack(cached)
 end
 
+ColGen.rawHeightAt = rawHeightAt
 ColGen.heightAt = heightAt
 ColGen.layerWeights = layerWeights

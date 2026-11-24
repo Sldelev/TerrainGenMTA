@@ -30,18 +30,21 @@ local function buildVertices(points, faces, light)
 	return list
 end
 
-local function buildFarVertices(cx, cy, light)
-	local n = C.CHUNK_CELLS / C.LOD_FAR_STEP
+local function sampleGrid(x0, y0, n, step)
 	local stride = n + 1
 	local points = {}
 	for j = 0, n do
 		for i = 0, n do
-			local wx = cx * C.CHUNK_SIZE + i * C.LOD_FAR_STEP * C.CELL
-			local wy = cy * C.CHUNK_SIZE + j * C.LOD_FAR_STEP * C.CELL
+			local wx = x0 + i * step
+			local wy = y0 + j * step
 			local h, ravine = heightAt(wx, wy)
 			points[j * stride + i + 1] = {wx, wy, C.BASE_Z + h, ravine}
 		end
 	end
+	return points, stride
+end
+
+local function gridFaces(n, stride)
 	local faces = {}
 	for j = 0, n - 1 do
 		for i = 0, n - 1 do
@@ -52,8 +55,10 @@ local function buildFarVertices(cx, cy, light)
 			faces[#faces + 1] = {a, d, c}
 		end
 	end
-	local list = buildVertices(points, faces, light)
+	return faces
+end
 
+local function emitSkirt(list, points, n, stride, light)
 	local ring = {}
 	for i = n, 0, -1 do
 		ring[#ring + 1] = i + 1
@@ -76,17 +81,67 @@ local function buildFarVertices(cx, cy, light)
 		emitTriangle(list, a, b, bd, light, true)
 		emitTriangle(list, a, bd, ad, light, true)
 	end
+end
+
+local function buildFarVertices(cx, cy, light, step)
+	local n = C.CHUNK_CELLS / step
+	local points, stride = sampleGrid(cx * C.CHUNK_SIZE, cy * C.CHUNK_SIZE, n, step * C.CELL)
+	local list = buildVertices(points, gridFaces(n, stride), light)
+	emitSkirt(list, points, n, stride, light)
 	return list
+end
+
+local function coarseError(points, stride, step)
+	local worst = 0
+	for cj = 0, C.CHUNK_CELLS - step, step do
+		for ci = 0, C.CHUNK_CELLS - step, step do
+			local a = points[cj * stride + ci + 1][3]
+			local b = points[cj * stride + ci + step + 1][3]
+			local c = points[(cj + step) * stride + ci + 1][3]
+			local d = points[(cj + step) * stride + ci + step + 1][3]
+			for j = 0, step do
+				for i = 0, step do
+					local u, v = i / step, j / step
+					local h
+					if v <= u then
+						h = a + (b - a) * u + (d - b) * v
+					else
+						h = a + (d - c) * u + (c - a) * v
+					end
+					worst = math.max(worst, math.abs(points[(cj + j) * stride + ci + i + 1][3] - h))
+				end
+			end
+		end
+	end
+	return worst
+end
+
+function ColGen.flatLod(chunk)
+	if not chunk.flatLod then
+		local dist = ColGen.roadDistance(chunk.cx, chunk.cy, C.TERRAIN_NEAR_ROAD + C.TERRAIN_FALLOFF)
+		local t = math.min(1, math.max(0, (dist - C.TERRAIN_NEAR_ROAD) / C.TERRAIN_FALLOFF))
+		local tol = C.TERRAIN_FLAT_TOL + (C.TERRAIN_FAR_TOL - C.TERRAIN_FLAT_TOL) * t
+		local best = 1
+		for k = 2, #C.LOD_LEVELS do
+			if coarseError(chunk.points, chunk.stride, C.LOD_LEVELS[k].step) <= tol then
+				best = k
+			end
+		end
+		chunk.flatLod = best
+	end
+	return chunk.flatLod
 end
 
 function ColGen.getChunkDraw(chunk, lod)
 	local draw = chunk.draw[lod]
 	if not draw then
+		local t0 = getTickCount()
 		if lod == 1 then
 			draw = buildVertices(chunk.points, chunk.faces, S.light)
 		else
-			draw = buildFarVertices(chunk.cx, chunk.cy, S.light)
+			draw = buildFarVertices(chunk.cx, chunk.cy, S.light, C.LOD_LEVELS[lod].step)
 		end
+		ColGen.probeTerrain(getTickCount() - t0)
 		chunk.draw[lod] = draw
 	end
 	return draw

@@ -12,6 +12,9 @@ sampler2D sGrass = sampler_state
 	Texture = gGrass;
 	AddressU = Wrap;
 	AddressV = Wrap;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
 };
 
 sampler2D sRock = sampler_state
@@ -19,6 +22,9 @@ sampler2D sRock = sampler_state
 	Texture = gRock;
 	AddressU = Wrap;
 	AddressV = Wrap;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
 };
 
 sampler2D sSand = sampler_state
@@ -26,6 +32,9 @@ sampler2D sSand = sampler_state
 	Texture = gSand;
 	AddressU = Wrap;
 	AddressV = Wrap;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
 };
 
 sampler2D sSnow = sampler_state
@@ -33,6 +42,9 @@ sampler2D sSnow = sampler_state
 	Texture = gSnow;
 	AddressU = Wrap;
 	AddressV = Wrap;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
 };
 
 struct VSInput

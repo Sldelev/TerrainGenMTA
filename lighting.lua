@@ -40,6 +40,7 @@ function ColGen.refreshLight()
 		if math.abs(chunk.light - S.light) > C.LIGHT_EPSILON then
 			chunk.light = S.light
 			chunk.draw = {}
+			chunk.roadDff = nil
 		end
 	end
 end
